@@ -8,11 +8,12 @@ You can use this tool to process most popular audio file formats. Multiple proce
 ## = = PREREQUISITES = = 
 
 FFmpeg - Needed for compression and processing.
+
 Sox - Needed for file normalization.
+
 libsox-fmt-all - Needed by SoX for support of various audio formats
 
-These can be installed on Debian systems using the following command:
-    apt install ffmpeg sox libsox-fmt-all
+These can be installed on Debian systems by running `apt install ffmpeg sox libsox-fmt-all`.
 
 ## = = USAGE = =
 Drop the bash script in a folder with music. All files you want to process have to be in the same folder as the script.
