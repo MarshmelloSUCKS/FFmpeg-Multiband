@@ -5,6 +5,8 @@ This script was made so I could batch process a collection of music files. Audac
 
 You can use this tool to process most popular audio file formats. Multiple processing options are available, meaning you can have a bit of compression or lots of it.
 
+`FFmpeg-Multiband.sh` is the standard version of the script. `FFmpeg-Multiband-FM.sh` contains a low-pass filter suitable for FM Radio transmitting.
+
 ## = = PREREQUISITES = = 
 
 FFmpeg - Needed for compression and processing.
