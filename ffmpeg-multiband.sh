@@ -93,6 +93,64 @@ limitdrive=$5
 #Silence trimming
 trimming=$6
 
+###AGC settings###
+#AGC threshold (default: -16dB)
+agcthreshold=-16dB
+#AGC attack/release (default: 1000, 5000)
+agcattack=1000
+agcrelease=5000
+#AGC highpass (default: 0, 30)
+agchpstart=0
+agchpend=30
+#AGC lowpass (default: 20000, 22000)
+agclpstart=20000
+agclpend=22000
+
+###Band 1 settings###
+#Band 1 threshold (default: -21dB)
+band1threshold=-21dB
+#Band 1 ratio (default: 6)
+band1ratio=6
+#Band 1 attack/release (default: 200, 600)
+band1attack=200
+band1release=600
+#Band 1 lowpass (defaults: 150, 600)
+band1lpstart=150
+band1lpend=600
+#Band 1 makeup gain (default: 9dB)
+band1gain=9dB
+
+###Band 2 settings###
+#Band 2 threshold (default: -21dB)
+band2threshold=-21dB
+#Band 2 ratio (default: 6)
+band2ratio=6
+#Band 2 attack/release (default: 200, 600)
+band2attack=200
+band2release=600
+#Band 2 highpass (defaults: 62, 250)
+band2hpstart=62
+band2hpend=250
+#Band 2 lowpass (defaults: 3000, 12000)
+band2lpstart=3000
+band2lpend=12000
+#Band 2 makeup gain (default: 6dB)
+band2gain=6dB
+
+###Band 3 settings###
+#Band 3 threshold (default: -27dB)
+band3threshold=-27dB
+#Band 3 ratio (default: 6)
+band3ratio=6
+#Band 3 attack/release (default: 100, 600)
+band3attack=100
+band3release=600
+#Band 3 highpass (defaults: 875, 3000)
+band3hpstart=875
+band3hpend=3000
+#Band 3 makeup gain (default: 6dB)
+band3gain=6dB
+
 #Make a place to put the result
 echo "Making Processed/"
 mkdir Processed
@@ -111,19 +169,22 @@ do
 	rsgain custom -s i "$i"
 
 	#AGC and Multiband compression
-	ffmpeg -hide_banner -y -i "$i" -filter_complex "[0:a] volume=replaygain=track, firequalizer=gain_entry='entry(0,-50); entry(30, 0); entry(20000,0); entry(22000, -50)', acompressor=detection=rms:threshold=-16dB:ratio=20:attack=1000:release=5000, volume="$compdrive"dB, asplit=3 [agc1][agc2][agc3],\
-	[agc1] adelay=10|10, firequalizer=gain_entry='entry(150,0); entry(600, -50)', acompressor=threshold=-21dB:ratio=6:attack=200:release=600:makeup=9dB [mb1],\
-    [agc2] firequalizer=gain_entry='entry(62,-50); entry(250, 0); entry(3000,0); entry(12000, -50)', acompressor=threshold=-21dB:ratio=6:attack=200:release=600:makeup=6dB [mb2],\
-    [agc3] firequalizer=gain_entry='entry(875,-50); entry(3500, 0)', acompressor=threshold=-27dB:ratio=6:attack=100:release=600:makeup=6dB [mb3],\
-    [mb1][mb2][mb3] amix=inputs=3:normalize=0, extrastereo=m=1.5" "Processing/${i%.*}-preamp.flac"
+	ffmpeg -hide_banner -y -i "$i" -filter_complex "[0:a] volume=replaygain=track, firequalizer=gain_entry='entry($agchpstart,-50); entry($agchpend, 0); entry($agclpstart,0); entry($agclpend, -50)', acompressor=detection=rms:threshold=$agcthreshold:ratio=20:attack=$agcattack:release=$agcrelease, volume="$compdrive"dB, asplit=3 [agc1][agc2][agc3],\
+	[agc1] adelay=10|10, firequalizer=gain_entry='entry($band1lpstart,0); entry($band1lpend, -50)', acompressor=threshold=$band1threshold:ratio=$band1ratio:attack=$band1attack:release=$band1release:makeup=$band1gain [mb1],\
+    [agc2] firequalizer=gain_entry='entry($band2hpstart,-50); entry($band2hpend, 0); entry($band2lpstart,0); entry($band2lpend, -50)', acompressor=threshold=$band2threshold:ratio=$band2ratio:attack=$band2attack:release=$band2release:makeup=$band2gain [mb2],\
+    [agc3] firequalizer=gain_entry='entry($band3hpstart,-50); entry($band3hpend, 0)', acompressor=threshold=$band3threshold:ratio=$band3ratio:attack=$band3attack:release=$band3release:makeup=$band3gain [mb3],\
+    [mb1][mb2][mb3] amix=inputs=3:normalize=0, extrastereo=m=1.5, volume="$limitdrive"dB, alimiter=attack=0.1:release=1:limit=-3dB:level=0" "Processing/${i%.*}-pretrim.flac"
+
+    #Remove ReplayGain tags since they're no longer valid
+    rsgain custom -s i "Processing/${i%.*}-pretrim.flac"
 	
 	#Final Export
 	if [[ $trimming = trim ]]; then
 		#Limiting and trimming
-		ffmpeg -hide_banner -y -i "Processing/${i%.*}-preamp.flac" -filter:a "silenceremove=start_periods=1: start_duration=0: start_threshold=-45dB: detection=peak,aformat=dblp,areverse,silenceremove=start_periods=1: start_duration=0: start_threshold=-35dB: detection=peak,aformat=dblp,areverse, volume="$limitdrive"dB, alimiter=attack=0.1:release=1:limit=-3dB:level=0" -ab "$bitrate"k "Processed/${i%.*}.$export"
+		ffmpeg -hide_banner -y -i "Processing/${i%.*}-pretrim.flac" -filter:a "silenceremove=start_periods=1: start_duration=0: start_threshold=-45dB: detection=peak,aformat=dblp,areverse,silenceremove=start_periods=1: start_duration=0: start_threshold=-35dB: detection=peak,aformat=dblp,areverse, volume="$limitdrive"dB, alimiter=attack=0.1:release=1:limit=-3dB:level=0" -ab "$bitrate"k "Processed/${i%.*}.$export"
 	else
 		#Limiting only
-		ffmpeg -hide_banner -y -i "Processing/${i%.*}-preamp.flac" -filter:a "volume="$limitdrive"dB, alimiter=attack=0.1:release=1:limit=-3dB:level=0" -ab "$bitrate"k "Processed/${i%.*}.$export"
+		ffmpeg -hide_banner -y -i "Processing/${i%.*}-pretrim.flac" -ab "$bitrate"k "Processed/${i%.*}.$export"
 	fi
 
 	#Remove temporary files
