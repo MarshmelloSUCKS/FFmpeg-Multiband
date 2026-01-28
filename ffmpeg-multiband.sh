@@ -1,5 +1,31 @@
 #!/bin/bash
 
+#===Basic Settings===
+
+#===Sound settings===
+# AGC drive (default: 0)
+agcdrive=0
+# Compressor drive (default: 0)
+compdrive=0
+# Limiter drive (default: 0)
+limitdrive=0
+#Stereo width (default: 1.5)
+width=1.5
+
+#===AGC settings===
+# AGC attack speed (default: 1000)
+agcattack=1000
+# AGC release speed (default: 5000)
+agcrelease=5000
+
+#===Multiband settings===
+# Compressor attack speed (default: 100)
+compattack=100
+# Compressor release speed (default: 500)
+comprelease=500
+# Compressor ratio (default: 6)
+compratio=6
+
 #   __  __                                   _ _   _ _                  _
 #  / _|/ _|_ __  _ __  ___ __ _    _ __ _  _| | |_(_) |__  __ _ _ _  __| |
 # |  _|  _| '  \| '_ \/ -_) _' |  | '  \ || | |  _| | '_ \/ _' | ' \/ _` |
@@ -9,39 +35,36 @@
 #
 # 	FFmpeg Multiband - a bash script that uses FFmpeg to apply multiband
 # compression to audio files. Includes auto-gain control with replaygain,
-# 3-band compressor, stereo widening, and a limiter.
+# 3-band compressor, stereo widening, and a 4x oversampled limiter.
 #
 # 	This script needs FFmpeg, basic GNU tools, and a bash shell to
 # work. rsgain is recomended, and will apply ReplayGain levels before AGC.
 # If needed, install ffmpeg and rsgain using your package manager.
 #
-# 	To use, download ffmpeg-multiband.sh, copy it to the directory with
-# the songs you want to convert, mark the script as executable with
-# `chmod +x ffmpeg-multiband.sh`, and run the script by typing:
-# 	`./ffmpeg-multiband.sh [in ext] [out ext] [out bitrate] [comp drive]
-#	[limiter drive] [trim/notrim]`
+# To use:
+#   - download ffmpeg-multiband.sh
+#   - copy it to the directory with the songs you want to convert
+#   - open the script in a text editor, and adjust Basic Settings if
+#     desired
+#   - mark the script as executable with `chmod +x ffmpeg-multiband.sh`
+#   - run the script with:
+# 	  `./ffmpeg-multiband.sh [in ext] [out ext] [out bitrate] [comp drive]
+#	  [limiter drive] [trim/notrim]`
 #
 # Parameters:
 #	[in ext]: Input file extension (mp3, flac)
 #	[out ext]: Output file extension (mp3, flac)
 #	[out bitrate]: Output file bitrate, in kbps
-#	[comp drive]: Input level to compressor in dB
-#	[limiter drive]: Input level to limiter in dB
 #	[trim/notrim]: Toggles silence trimming
 #
 # Examples:
-#	FLAC input, MP3 320kbps output, no compressor or limiter drive, no
-#	trimming:
-#		./ffmpeg-multiband.sh flac mp3 320 0 0 notrim
+#	FLAC input, MP3 320kbps output, no trimming:
+#		./ffmpeg-multiband.sh flac mp3 320 notrim
 #
-#	FLAC input, FLAC output, no compressor drive, +3dB drive, trimming:
-#		./ffmpeg-multiband.sh flac flac 1411 0 3 trim
+#	FLAC input, FLAC output, trimming:
+#		./ffmpeg-multiband.sh flac flac 1411 trim
 #
-#	M4A input, FLAC output, -3dB compressor drive, +3dB limiter drive,
-#	trimming:
-#		./ffmpeg-multiband.sh m4a flac 1411 -3 3 trim
-#
-#queer coded in 2025 by msx.gay - http://msx.gay
+#queer coded in 2026 by msx.gay - http://msx.gay
 
 echo " - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  "
 echo "  __  __                                   _ _   _ _                  _ "
@@ -54,27 +77,20 @@ echo " - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  "
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     echo " "
     echo "Usage:"
-    echo "  ./ffmpeg-multiband.sh [Input extension] [Output extension] [Output bitrate] [Compressor drive] [Limiter drive] [trim/notrim]"
+    echo "  ./ffmpeg-multiband.sh [Input extension] [Output extension] [Output bitrate] [trim/notrim]"
     echo ""
     echo "Parameters:"
     echo "	[Input extension]: The file extension of the input (ex: mp3, flac)"
     echo "	[Output extension]: The file extension of the output (ex: mp3, flac)"
     echo "	[Output bitrate]: The bitrate of the output files, in kbps."
-    echo "	[Compressor drive]: The input level to the compressor, in dB."
-    echo "		I recommend 9dB as a maximum."
-    echo "	[Limiter drive]: The input level to the limiter, in dB."
-    echo "		I recommend 3dB as a maximum."
     echo "	[trim/notrim]: Toggles silence trimming."
     echo ""
     echo "Examples:"
-    echo "	FLAC input, MP3 320kbps output, no compressor or limiter drive, no trimming:"
-    echo "		./ffmpeg-multiband.sh flac mp3 320 0 0 notrim"
+    echo "	FLAC input, MP3 320kbps output, no trimming:"
+    echo "		./ffmpeg-multiband.sh flac mp3 320 notrim"
     echo ""
-    echo "	FLAC input, FLAC output, no compressor drive, +3dB drive, trimming:"
-    echo "		./ffmpeg-multiband.sh flac flac 1411 0 3 trim"
-    echo ""
-    echo "	M4A input, FLAC output, -3dB compressor drive, +3dB limiter drive, trimming:"
-	echo "		./ffmpeg-multiband.sh m4a flac 1411 -3 3 trim"
+    echo "	FLAC input, FLAC output, trimming:"
+    echo "		./ffmpeg-multiband.sh flac flac 1411 trim"
     exit 0
 fi
 
@@ -86,19 +102,12 @@ ext=$1
 export=$2
 #Output file bitrate
 bitrate=$3
-#Compressor drive
-compdrive=$4
-#Limiter drive
-limitdrive=$5
 #Silence trimming
-trimming=$6
+trimming=$4
 
 ###AGC settings###
 #AGC threshold (default: -16dB)
 agcthreshold=-16dB
-#AGC attack/release (default: 1000, 5000)
-agcattack=1000
-agcrelease=5000
 #AGC highpass (default: 0, 30)
 agchpstart=0
 agchpend=30
@@ -107,13 +116,8 @@ agclpstart=20000
 agclpend=22000
 
 ###Band 1 settings###
-#Band 1 threshold (default: -21dB)
-band1threshold=-21dB
-#Band 1 ratio (default: 6)
-band1ratio=6
-#Band 1 attack/release (default: 200, 600)
-band1attack=200
-band1release=600
+#Band 1 threshold (default: -18dB)
+band1threshold=-18dB
 #Band 1 lowpass (defaults: 150, 600)
 band1lpstart=150
 band1lpend=600
@@ -123,11 +127,6 @@ band1gain=9dB
 ###Band 2 settings###
 #Band 2 threshold (default: -21dB)
 band2threshold=-21dB
-#Band 2 ratio (default: 6)
-band2ratio=6
-#Band 2 attack/release (default: 200, 600)
-band2attack=200
-band2release=600
 #Band 2 highpass (defaults: 62, 250)
 band2hpstart=62
 band2hpend=250
@@ -140,11 +139,6 @@ band2gain=6dB
 ###Band 3 settings###
 #Band 3 threshold (default: -27dB)
 band3threshold=-27dB
-#Band 3 ratio (default: 6)
-band3ratio=6
-#Band 3 attack/release (default: 100, 600)
-band3attack=100
-band3release=600
 #Band 3 highpass (defaults: 875, 3000)
 band3hpstart=875
 band3hpend=3000
@@ -162,6 +156,10 @@ do
 	echo "= = = Processing $i = = ="
 	sleep 1
 
+	#Get samplerate of input file, we'll use this for re-sampling later
+	sample=$(ffprobe -v error -show_entries stream=sample_rate -of default=nw=1:nk=1 "$i")
+	oversample=$((sample*4))
+
 	#Make directories required for processing
 	mkdir Processing
 
@@ -169,19 +167,19 @@ do
 	rsgain custom -s i "$i"
 
 	#AGC and Multiband compression
-	ffmpeg -hide_banner -y -i "$i" -filter_complex "[0:a] volume=replaygain=track, firequalizer=gain_entry='entry($agchpstart,-50); entry($agchpend, 0); entry($agclpstart,0); entry($agclpend, -50)', acompressor=detection=rms:threshold=$agcthreshold:ratio=20:attack=$agcattack:release=$agcrelease, volume="$compdrive"dB, asplit=3 [agc1][agc2][agc3],\
-	[agc1] adelay=10|10, firequalizer=gain_entry='entry($band1lpstart,0); entry($band1lpend, -50)', acompressor=threshold=$band1threshold:ratio=$band1ratio:attack=$band1attack:release=$band1release:makeup=$band1gain [mb1],\
-    [agc2] firequalizer=gain_entry='entry($band2hpstart,-50); entry($band2hpend, 0); entry($band2lpstart,0); entry($band2lpend, -50)', acompressor=threshold=$band2threshold:ratio=$band2ratio:attack=$band2attack:release=$band2release:makeup=$band2gain [mb2],\
-    [agc3] firequalizer=gain_entry='entry($band3hpstart,-50); entry($band3hpend, 0)', acompressor=threshold=$band3threshold:ratio=$band3ratio:attack=$band3attack:release=$band3release:makeup=$band3gain [mb3],\
-    [mb1][mb2][mb3] amix=inputs=3:normalize=0, extrastereo=m=1.5, volume="$limitdrive"dB, alimiter=attack=0.1:release=1:limit=-3dB:level=0" "Processing/${i%.*}-pretrim.flac"
+	ffmpeg -hide_banner -y -i "$i" -filter_complex "[0:a] volume=replaygain=track, firequalizer=gain_entry='entry($agchpstart,-50); entry($agchpend, 0); entry($agclpstart,0); entry($agclpend, -50)', volume="$agcdrive"dB, acompressor=detection=rms:threshold=$agcthreshold:ratio=20:attack=$agcattack:release=$agcrelease, volume="$compdrive"dB, asplit=3 [agc1][agc2][agc3],\
+	[agc1] adelay=10|10, firequalizer=gain_entry='entry($band1lpstart,0); entry($band1lpend, -50)', acompressor=threshold=$band1threshold:ratio=$compratio:attack=$compattack:release=$comprelease:makeup=$band1gain [mb1],\
+    [agc2] firequalizer=gain_entry='entry($band2hpstart,-50); entry($band2hpend, 0); entry($band2lpstart,0); entry($band2lpend, -50)', acompressor=threshold=$band2threshold:ratio=$compratio:attack=$compattack:release=$comprelease:makeup=$band2gain [mb2],\
+    [agc3] firequalizer=gain_entry='entry($band3hpstart,-50); entry($band3hpend, 0)', acompressor=threshold=$band3threshold:ratio=$compratio:attack=$compattack:release=$comprelease:makeup=$band3gain [mb3],\
+    [mb1][mb2][mb3] amix=inputs=3:normalize=0, extrastereo=m=$width, volume="$limitdrive"dB, aresample=$oversample, alimiter=attack=0.1:release=1:limit=-3.1dB:level=0, aresample=$sample" "Processing/${i%.*}-pretrim.flac"
 
     #Remove ReplayGain tags since they're no longer valid
     rsgain custom -s i "Processing/${i%.*}-pretrim.flac"
 	
 	#Final Export
 	if [[ $trimming = trim ]]; then
-		#Limiting and trimming
-		ffmpeg -hide_banner -y -i "Processing/${i%.*}-pretrim.flac" -filter:a "silenceremove=start_periods=1: start_duration=0: start_threshold=-45dB: detection=peak,aformat=dblp,areverse,silenceremove=start_periods=1: start_duration=0: start_threshold=-35dB: detection=peak,aformat=dblp,areverse, volume="$limitdrive"dB, alimiter=attack=0.1:release=1:limit=-3dB:level=0" -ab "$bitrate"k "Processed/${i%.*}.$export"
+		#Trimming
+		ffmpeg -hide_banner -y -i "Processing/${i%.*}-pretrim.flac" -filter:a "silenceremove=start_periods=1: start_duration=0: start_threshold=-45dB: detection=peak,aformat=dblp,areverse,silenceremove=start_periods=1: start_duration=0: start_threshold=-35dB: detection=peak,aformat=dblp,areverse" -ab "$bitrate"k "Processed/${i%.*}.$export"
 	else
 		#Limiting only
 		ffmpeg -hide_banner -y -i "Processing/${i%.*}-pretrim.flac" -ab "$bitrate"k "Processed/${i%.*}.$export"
